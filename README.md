@@ -1,0 +1,2 @@
+# SwingerBot
+Discord swinger game

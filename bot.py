@@ -212,11 +212,16 @@ async def fuck(ctx):
         # fuck : choose a random active & online user to fuck
         #
         # target user will be asked if they want to fuck
-        # if users both single or are in relationship with eachother, reward with 100 points
+        # if users both single, reward with 100 points each
+        # if users dating eachother, reward with 50 points each
+        # if users married to eachother, reward with 20 points
         # if one or both users in relationship with others, random probability of getting caught
         # if not caught, user(s) rewarded with 200 points
-        # if caught, user(s) SO's are asked if they want to divorce
-        # if SO chooses divorce, SO takes all of cheaters points
+        # caught user's spouse asked if they want to divorce, SOs (dating) asked if want to split
+        # if spouse chooses divorce, spouse takes half of cheaters points and both revert to single
+        # if spouse declines divorce, both awarded 100 points
+        # if SO chooses split, both revert to single
+        # if SO delinces split, both awarded 50 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
         await action(ctx, PendingActions.fuck)
@@ -232,7 +237,7 @@ async def date(ctx):
         # date : choose a random active & online user to date
         #
         # if target user is single, will ask them if they want to date
-        # if accepted, both users rewarded with 100 points
+        # if accepted, both users rewarded with 300 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
         await action(ctx, PendingActions.date)
@@ -263,7 +268,8 @@ async def divorce(ctx):
     try:
         # divorce<mention> : attempt to divorce specified user (limited to 1)
         # divorce : choose a random active & online user to divorce
-        # if accepted, both users lose half of points
+        # if accepted, both users points totalled up, then each user left with 25% (lawyers take the other half lmao)
+        # if declined, asking user loses random amount of points to ex-spouse
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
         divorcees = ctx.message.mentions

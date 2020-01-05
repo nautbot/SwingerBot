@@ -2,6 +2,7 @@ import datetime
 import asyncio
 import traceback
 import json
+import random
 from enum import Enum
 
 import discord
@@ -20,8 +21,6 @@ cur.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER, guild INTEGER, relatio
 print('Loaded Users')
 cur.execute('CREATE TABLE IF NOT EXISTS sex(id1 INTEGER, id2 INTEGER, guild INTEGER, random BIT, time DATETIME)')
 print('Loaded Sex')
-cur.execute('CREATE TABLE IF NOT EXISTS pending(id1 INTEGER, id2 INTEGER, guild INTEGER, message INTEGER, action INTEGER)')
-print('Loaded Pending')
 sql.commit()
 
 username = settings["discord"]["description"]
@@ -39,10 +38,15 @@ class Relationship(Enum):
     Dating = 2
     Married = 3
 
-class PendingActions(Enum):
+class Actions(Enum):
     fuck = 1
     date = 2
     marry = 3
+
+class Results(Enum):
+    accept = 1
+    decline = 2
+    timeout = 3
 
 @client.command(pass_context=True, name="ping")
 async def bot_ping(ctx):
@@ -140,12 +144,7 @@ async def status(ctx):
             return
         embed = discord.Embed(title='User Status', type='rich', color=0x77B255)
         embed.add_field(name='User:', value='{0.mention}'.format(user), inline=False)
-        if int(user[2]) == 1:
-            embed.add_field(name='Status:', value='Single', inline=False)
-        elif int(user[2]) == 2:
-            embed.add_field(name='Status:', value='Dating', inline=False)
-        elif int(user[2]) == 2:
-            embed.add_field(name='Status:', value='Married', inline=False)
+        embed.add_field(name='Status:', value=Relationship(int(user[2])).name, inline=False)
         embed.add_field(name='Score:', value=str(int(user[3])), inline=False)
         await ctx.send(embed)
     except Exception as e:
@@ -153,55 +152,139 @@ async def status(ctx):
         pass
 
 
-def add_user(id):
+def add_user(guild_id, user_id):
     try:
-        cur.execute('SELECT count(*) FROM users WHERE id=?', (id,))
+        cur.execute('SELECT count(*) FROM users WHERE guild=? AND id=?', (guild_id, user_id))
         user = cur.fetchone()
         if int(user[0]) == 0:
-            cur.execute('INSERT INTO users VALUES(?,)', (id,))
+            cur.execute('INSERT INTO users VALUES(?,?,1,null,0,0)', (id,))
     except Exception as e:
         print('add_user : ', e)
         pass
 
 
-async def action(ctx, pendingaction):
+def get_random_user(guild_id, calling_user_id, is_not_married):
     try:
-        if ctx.message.author == client.user or ctx.message.author.bot:
-            return
-        users = ctx.message.mentions
-        target = None
-        if len(target) > 1:
-            await ctx.send("{0.author.mention} Please mention one user to {1}, or do not mention any to {1} at random.".format(ctx.message, pendingaction.name))
-            return
-        elif len(users) == 1:
-            target = users[0]
+        if is_not_married:
+            cur.execute('SELECT id FROM users WHERE guild=? AND ignore=0 AND id<>? AND relationship<>3 ORDER BY RANDOM() LIMIT 1;', (guild_id, calling_user_id))
         else:
-            cur.execute('SELECT id FROM users WHERE guild = ? AND ignore=0 AND id<>? ORDER BY RANDOM() LIMIT 1;', (ctx.message.guild, ctx.message.author.id,))
-            row = cur.fetchone()
-            target = get(client.get_all_members(), id=row[0])
-
-        def check(reaction, user):
-            # need multiple emoji reaction listener
-            # eggplant will be accept, broccoli will be decline.  Just roll with it.
-            return user == target and str(reaction.emoji) == '🍆' # 🥦
-
-        try:
-            reaction, user = client.wait_for('reaction_add', timeout=60.0, check=check)
-        except asyncio.TimeoutError:
-            pass
-        else:
-            pass
-
-        # await reply = ctx.send("{0.mention} Looks like {1.author.mention} wants to {2}}.  You down?".format(fuckee, ctx.message, pendingaction.name))
-        # cur.execute('DELETE pending WHERE id1=? OR id1=? or id2=? or id2=?', (fuckee.id, ctx.message.author.id, fuckee.id, ctx.message.author.id))
-        # sql.commit()
-        # cur.execute('INSERT INTO pending VALUES(?,?,?,?,?)', (fuckee.id, ctx.message.author.id, ctx.guild, reply.id, pendingaction.value))
-        # sql.commit()
-        # await reply.add_reaction('white_check_mark')
-        # await reply.add_reaction('redtick')
-        # cur.execute('VACUUM')
+            cur.execute('SELECT id FROM users WHERE guild=? AND ignore=0 AND id<>? ORDER BY RANDOM() LIMIT 1;', (guild_id, calling_user_id))
+        row = cur.fetchone()
+        return get(client.get_all_members(), id=row[0])
     except Exception as e:
-        print('action : ', e)
+        print('get_random_user : ', e)
+        pass
+
+
+def add_fuck(guild_id, user1_id, user2_id):
+    try:
+        pass
+    except Exception as e:
+        print('add_fuck : ', e)
+        pass
+
+
+def has_recent_fuck(guild_id, user1_id, user2_id):
+    try:
+        pass
+    except Exception as e:
+        print('has_recent_fuck : ', e)
+        pass 
+
+
+def add_spouse(guild_id, user1_id, user2_id):
+    try:
+        cur.execute("UPDATE users SET relationship=3, with_id=? WHERE guild=? AND id=?", (user2_id, guild_id, user1_id))
+        cur.execute("UPDATE users SET relationship=3, with_id=? WHERE guild=? AND id=?", (user1_id, guild_id, user2_id))
+        sql.commit()
+    except Exception as e:
+        print('add_spouse : ', e)
+        pass
+
+
+def remove_spouse(guild_id, user1_id, user2_id):
+    try:
+        cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user1_id))
+        cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user2_id))
+        sql.commit()
+    except Exception as e:
+        print('remove_spouse : ', e)
+        pass
+
+
+def is_married(guild_id, user_id):
+    try:
+        cur.execute("SELECT count(*) FROM users WHERE guild=? AND id=? AND relationship=3", (guild_id, user_id))
+        user = cur.fetchone()
+        return int(user[0]) != 0
+    except Exception as e:
+        print('is_married : ', e)
+        pass
+
+
+def married_to_user(guild_id, user_id):
+    try:
+        cur.execute("SELECT count(*), with_id FROM users WHERE guild=? AND id=? AND relationship=3", (guild_id, user_id))
+        user = cur.fetchone()
+        if int(user[1]) != 0:
+            return get(client.get_all_members(), id=user[1])
+        else:
+            return None
+    except Exception as e:
+        print('married_to_user : ', e)
+        pass
+
+
+def add_so(guild_id, user1_id, user2_id):
+    try:
+        cur.execute("UPDATE users SET relationship=2, with_id=? WHERE guild=? AND id=?", (user2_id, guild_id, user1_id))
+        cur.execute("UPDATE users SET relationship=2, with_id=? WHERE guild=? AND id=?", (user1_id, guild_id, user2_id))
+        sql.commit()
+    except Exception as e:
+        print('add_so : ', e)
+        pass
+
+
+def remove_so(guild_id, user1_id, user2_id):
+    try:
+        cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user1_id))
+        cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user2_id))
+        sql.commit()
+    except Exception as e:
+        print('remove_so : ', e)
+        pass
+
+
+def is_dating(guild_id, user_id):
+    try:
+        cur.execute("SELECT count(*) FROM users WHERE guild=? AND id=? AND relationship=2", (guild_id, user_id))
+        user = cur.fetchone()
+        return int(user[0]) != 0
+    except Exception as e:
+        print('remove_spouse : ', e)
+        pass
+
+
+def dating_user(guild_id, user_id):
+    try:
+        cur.execute("SELECT count(*), with_id FROM users WHERE guild=? AND id=? AND relationship=2", (guild_id, user_id))
+        user = cur.fetchone()
+        if int(user[1]) != 0:
+            return get(client.get_all_members(), id=user[1])
+        else:
+            return None
+    except Exception as e:
+        print('dating_user : ', e)
+        pass
+
+
+def is_in_relationship(guild_id, user_id):
+    try:
+        cur.execute("SELECT count(*), id, relationship FROM users WHERE guild=? AND id=?", (guild_id, user_id))
+        user = cur.fetchone()
+        return int(user[0]) != 0 and int(user[2]) != 1
+    except Exception as e:
+        print('is_in_relationship : ', e)
         pass
 
 
@@ -224,7 +307,29 @@ async def fuck(ctx):
         # if SO delinces split, both awarded 50 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
-        await action(ctx, PendingActions.fuck)
+        users = ctx.message.mentions
+        target = None
+        if len(users) > 1:
+            await ctx.send("{0.author.mention} Please mention one user to fuck, or do not mention any to fuck at random.".format(ctx.message))
+            return
+        elif len(users) == 1:
+            target = users[0]
+        else:
+            target = get_random_user(ctx.message.guild.id, ctx.message.author.id, False)
+        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, ctx.message.author))
+        await reply.add_reaction(reply, "✅")
+        await reply.add_reaction(reply, "❌")
+        try:
+            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
+        except asyncio.TimeoutError:
+            return Results.timeout
+        else:
+            if answer.reaction.emoji == "✅":
+                return Results.accept
+            elif answer.reaction.emoji == "❌":
+                return Results.decline
+        if answer = Results.accept:
+
     except Exception as e:
         print('fuck : ', e)
         pass
@@ -240,7 +345,28 @@ async def date(ctx):
         # if accepted, both users rewarded with 300 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
-        await action(ctx, PendingActions.date)
+        users = ctx.message.mentions
+        target = None
+        if len(users) > 1:
+            await ctx.send("{0.author.mention} Please mention one user to date, or do not mention any to date at random.".format(ctx.message))
+            return
+        elif len(users) == 1:
+            target = users[0]
+        else:
+            target = get_random_user(ctx.message.guild.id, ctx.message.author.id, False)
+        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, ctx.message.author))
+        await reply.add_reaction(reply, "✅")
+        await reply.add_reaction(reply, "❌")
+        try:
+            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
+        except asyncio.TimeoutError:
+            return Results.timeout
+        else:
+            if answer.reaction.emoji == "✅":
+                return Results.accept
+            elif answer.reaction.emoji == "❌":
+                return Results.decline
+
     except Exception as e:
         print('date : ', e)
         pass
@@ -256,7 +382,27 @@ async def marry(ctx):
         # if accepted, both users rewarded with 500 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
-        await action(ctx, PendingActions.marry)
+        users = ctx.message.mentions
+        target = None
+        if len(users) > 1:
+            await ctx.send("{0.author.mention} Please mention one user to marry, or do not mention any to marry at random.".format(ctx.message))
+            return
+        elif len(users) == 1:
+            target = users[0]
+        else:
+            target = get_random_user(ctx.message.guild.id, ctx.message.author.id, False)
+        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, ctx.message.author))
+        await reply.add_reaction(reply, "✅")
+        await reply.add_reaction(reply, "❌")
+        try:
+            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
+        except asyncio.TimeoutError:
+            return Results.timeout
+        else:
+            if answer.reaction.emoji == "✅":
+                return Results.accept
+            elif answer.reaction.emoji == "❌":
+                return Results.decline
             
     except Exception as e:
         print('marry : ', e)

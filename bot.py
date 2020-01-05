@@ -335,7 +335,7 @@ async def fuck(ctx):
         # if not caught, user(s) rewarded with 200 points
         # caught user's spouse asked if they want to divorce, SOs (dating) asked if want to split
         # if spouse chooses divorce, spouse takes half of cheaters points and both revert to single
-        # if spouse declines divorce, both awarded 100 points
+        # if spouse declines divorce, nothing happens.  but really, does *nothing* happen?
         # if SO chooses split, both revert to single
         # if SO delinces split, what a loser
         if ctx.message.author == client.user or ctx.message.author.bot:
@@ -378,12 +378,12 @@ async def fuck(ctx):
                     answer = get_answer(reply)
                     if answer = Results.accept:
                         score = get_score(guild_id, cheater.id)
-                        update_score(guild_id, cheater.id, score/2)
+                        update_score(guild_id, cheater.id, score / 2)
                         update_score(guild_id, spouse.id, get_score(guild_id, spouse.id) + (score / 2))
                         remove_spouse(guild_id, cheater.id, spouse.id)
                         await ctx.send("Welp, {0.mention} just lost half their shit.".format(cheater))
                     elif answer = Results.decline:
-                        await ctx.send("{0.mention} I can't believe you're just going to let {0.mention} walk all over you, but that's cool.".format(spouse, cheater))
+                        await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(spouse, cheater))
                     elif answer = Results.timeout:
                         await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(spouse))
                 elif:
@@ -394,7 +394,7 @@ async def fuck(ctx):
                         remove_significantother(guild_id, cheater.id, significantother.id)
                         await ctx.send("{0.mention} Guess you just got dumped.  YOLO!".format(cheater))
                     elif answer = Results.decline:
-                        await ctx.send("{0.mention} I can't believe you're just going to let {0.mention} walk all over you, but that's cool.".format(significantother, cheater))
+                        await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(significantother, cheater))
                     elif answer = Results.timeout:
                         await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(significantother))
             else:

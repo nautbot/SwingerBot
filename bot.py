@@ -176,6 +176,22 @@ def get_random_user(guild_id, calling_user_id, is_not_married):
         pass
 
 
+def get_score(guild_id, user_id)
+    try:
+
+    except Exception as e:
+        print('get_score : ', e)
+        pass
+
+
+def update_score(guild_id, user_id, new_score)
+    try:
+
+    except Exception as e:
+        print('update_score : ', e)
+        pass
+
+
 def add_fuck(guild_id, user1_id, user2_id):
     try:
         pass
@@ -245,7 +261,7 @@ def add_so(guild_id, user1_id, user2_id):
         pass
 
 
-def remove_so(guild_id, user1_id, user2_id):
+def remove_significantother(guild_id, user1_id, user2_id):
     try:
         cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user1_id))
         cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user2_id))
@@ -288,6 +304,23 @@ def is_in_relationship(guild_id, user_id):
         pass
 
 
+async def get_answer(reply):
+    try:
+        await reply.add_reaction(reply, "✅")
+        await reply.add_reaction(reply, "❌")
+        try:
+            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
+        except asyncio.TimeoutError:
+            return Results.timeout
+        else:
+            if answer.reaction.emoji == "✅":
+                return Results.accept
+            elif answer.reaction.emoji == "❌":
+                return Results.decline
+    except Exception as e:
+        print('get_answer : ', e)
+        pass
+
 @client.command(pass_context=True, name='fuck')
 async def fuck(ctx):
     try:
@@ -304,32 +337,73 @@ async def fuck(ctx):
         # if spouse chooses divorce, spouse takes half of cheaters points and both revert to single
         # if spouse declines divorce, both awarded 100 points
         # if SO chooses split, both revert to single
-        # if SO delinces split, both awarded 50 points
+        # if SO delinces split, what a loser
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
-        users = ctx.message.mentions
+        guild_id = ctx.message.guild.id
+        user = ctx.message.author
+        targets = ctx.message.mentions
         target = None
-        if len(users) > 1:
+        if len(targets) > 1:
             await ctx.send("{0.author.mention} Please mention one user to fuck, or do not mention any to fuck at random.".format(ctx.message))
             return
-        elif len(users) == 1:
-            target = users[0]
+        elif len(targets) == 1:
+            target = targets[0]
         else:
-            target = get_random_user(ctx.message.guild.id, ctx.message.author.id, False)
-        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, ctx.message.author))
-        await reply.add_reaction(reply, "✅")
-        await reply.add_reaction(reply, "❌")
-        try:
-            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
-        except asyncio.TimeoutError:
-            return Results.timeout
-        else:
-            if answer.reaction.emoji == "✅":
-                return Results.accept
-            elif answer.reaction.emoji == "❌":
-                return Results.decline
+            target = get_random_user(guild_id, user.id, False)
+        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, user))
+        answer = get_answer(reply)
         if answer = Results.accept:
-
+            if married_to_user(guild_id, user.id) == target:
+                await ctx.send("{0.mention} Boring marital sex.  Alright then.  +20".format(user))
+                update_score(guild_id, user.id, get_score(guild_id, user.id) + 20)
+                update_score(guild_id, target.id, get_score(guild_id, target.id) + 20)
+                return
+            if dating_user(guild_id, user.id) == target:
+                await ctx.send("{0.mention} Sounds like it's going good.  +50".format(user))
+                update_score(guild_id, user.id, get_score(guild_id, user.id) + 50)
+                update_score(guild_id, target.id, get_score(guild_id, target.id) + 50)
+                return
+            if not is_in_relationship(guild_id, user.id) and not is_in_relationship(guild_id, target.id):
+                await ctx.send("{0.mention} *HOT*.  +100".format(user))
+                update_score(guild_id, user.id, get_score(guild_id, user.id) + 100)
+                update_score(guild_id, target.id, get_score(guild_id, target.id) + 100)
+                return
+            cheater = random.choice([user, target])
+            caught = random.randint(1,11) == 1
+            if caught:
+                if is_married(guild_id, cheater.id) and married_to_user(guild_id, cheater.id):
+                    spouse = married_to_user(guild_id, user.id)
+                    reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Is this marriage over?".format(spouse, cheater))
+                    answer = get_answer(reply)
+                    if answer = Results.accept:
+                        score = get_score(guild_id, cheater.id)
+                        update_score(guild_id, cheater.id, score/2)
+                        update_score(guild_id, spouse.id, get_score(guild_id, spouse.id) + (score / 2))
+                        remove_spouse(guild_id, cheater.id, spouse.id)
+                        await ctx.send("Welp, {0.mention} just lost half their shit.".format(cheater))
+                    elif answer = Results.decline:
+                        await ctx.send("{0.mention} I can't believe you're just going to let {0.mention} walk all over you, but that's cool.".format(spouse, cheater))
+                    elif answer = Results.timeout:
+                        await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(spouse))
+                elif:
+                    significantother = dating_user(guild_id, user.id)
+                    reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Gonna dump their ass?".format(significantother, cheater))
+                    answer = get_answer(reply)
+                    if answer = Results.accept:
+                        remove_significantother(guild_id, cheater.id, significantother.id)
+                        await ctx.send("{0.mention} Guess you just got dumped.  YOLO!".format(cheater))
+                    elif answer = Results.decline:
+                        await ctx.send("{0.mention} I can't believe you're just going to let {0.mention} walk all over you, but that's cool.".format(significantother, cheater))
+                    elif answer = Results.timeout:
+                        await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(significantother))
+            else:
+                await ctx.send("{0.mention} No one got caught.  *NICE*.  +200".format(user))
+                update_score(guild_id, user.id, get_score(guild_id, user.id) + 200)
+                update_score(guild_id, target.id, get_score(guild_id, target.id) + 200)
+                return
+        elif answer = Results.decline:
+            await ctx.send("{0.mention} lmao denied!".format(user))
     except Exception as e:
         print('fuck : ', e)
         pass
@@ -345,27 +419,18 @@ async def date(ctx):
         # if accepted, both users rewarded with 300 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
-        users = ctx.message.mentions
+        user = ctx.message.author
+        targets = ctx.message.mentions
         target = None
-        if len(users) > 1:
+        if len(targets) > 1:
             await ctx.send("{0.author.mention} Please mention one user to date, or do not mention any to date at random.".format(ctx.message))
             return
-        elif len(users) == 1:
-            target = users[0]
+        elif len(targets) == 1:
+            target = targets[0]
         else:
-            target = get_random_user(ctx.message.guild.id, ctx.message.author.id, False)
-        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, ctx.message.author))
-        await reply.add_reaction(reply, "✅")
-        await reply.add_reaction(reply, "❌")
-        try:
-            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
-        except asyncio.TimeoutError:
-            return Results.timeout
-        else:
-            if answer.reaction.emoji == "✅":
-                return Results.accept
-            elif answer.reaction.emoji == "❌":
-                return Results.decline
+            target = get_random_user(ctx.message.guild.id, user.id, False)
+        reply = await ctx.send("{0.mention} Seems {1.mention} likes you.  Want to date?".format(target, user))
+        answer = get_answer(reply)
 
     except Exception as e:
         print('date : ', e)
@@ -382,27 +447,18 @@ async def marry(ctx):
         # if accepted, both users rewarded with 500 points
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
-        users = ctx.message.mentions
+        user = ctx.message.author
+        targets = ctx.message.mentions
         target = None
-        if len(users) > 1:
+        if len(targets) > 1:
             await ctx.send("{0.author.mention} Please mention one user to marry, or do not mention any to marry at random.".format(ctx.message))
             return
-        elif len(users) == 1:
-            target = users[0]
+        elif len(targets) == 1:
+            target = targets[0]
         else:
-            target = get_random_user(ctx.message.guild.id, ctx.message.author.id, False)
-        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, ctx.message.author))
-        await reply.add_reaction(reply, "✅")
-        await reply.add_reaction(reply, "❌")
-        try:
-            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target)
-        except asyncio.TimeoutError:
-            return Results.timeout
-        else:
-            if answer.reaction.emoji == "✅":
-                return Results.accept
-            elif answer.reaction.emoji == "❌":
-                return Results.decline
+            target = get_random_user(ctx.message.guild.id, user.id, False)
+        reply = await ctx.send("{0.mention} Oh wow, {1.mention} just proposed!  What do you say?".format(target, user))
+        answer = get_answer(reply)
             
     except Exception as e:
         print('marry : ', e)
@@ -427,37 +483,6 @@ async def divorce(ctx):
     except Exception as e:
         print('divorce : ', e)
         pass
-
-
-# @client.event
-# async def on_raw_reaction_add(ctx):
-#     try:
-#         cur.execute('SELECT count(*), id1, id2, guild, message, action FROM pending WHERE message=?;', (ctx.message.id,))
-#         row = cur.fetchone()
-#         if int(row[0]) == 0:
-#             return
-        
-#     except Exception as e:
-#         print('on_raw_reaction_add : ', e)
-#         pass
-
-
-# @client.event
-# async def on_message(message):
-#     try:
-#         pass
-#     except Exception as e:
-#         print('on_message : ', e)
-#         pass
-
-
-# @client.command(pass_context=True, name='check')
-# async def check(ctx):
-#     try:
-#         pass
-#     except Exception as e:
-#         print('check : ', e)
-#         pass
 
 
 # @client.command(pass_context=True, name='optin')

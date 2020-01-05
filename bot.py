@@ -1,4 +1,4 @@
-import datetime
+import datetime, time
 import asyncio
 import traceback
 import json
@@ -19,7 +19,7 @@ print('Loaded SQL Database')
 cur = sql.cursor()
 cur.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER, guild INTEGER, relationship INTEGER, with_id INTEGER, score INTEGER, ignore INTEGER)')
 print('Loaded Users')
-cur.execute('CREATE TABLE IF NOT EXISTS sex(id1 INTEGER, id2 INTEGER, guild INTEGER, random BIT, time DATETIME)')
+cur.execute('CREATE TABLE IF NOT EXISTS sex(id1 INTEGER, id2 INTEGER, guild INTEGER, timestamp FLOAT)')
 print('Loaded Sex')
 sql.commit()
 
@@ -30,6 +30,8 @@ start_time = datetime.datetime.utcnow()
 client = commands.Bot(
     command_prefix=settings["discord"]["command_prefix"],
     description=settings["discord"]["description"])
+
+client.remove_command("help")
 
 print('{} - {}'.format(username, version))
 
@@ -132,6 +134,22 @@ def user_exists(guild_id, user_id):
         pass
 
 
+def get_user_info(guild_id, user_id):
+    try:
+        if user_exists(guild_id, user_id):
+            cur.execute('SELECT relationship, score FROM users WHERE guild=? AND id=?', (guild_id, user_id))
+            user = cur.fetchone()
+            relationship = Relationship(int(user[0]))
+            score = int(user[1])
+            return relationship, score
+        else:
+            relationship = Relationship.Single
+            score = 0
+            return relationship, score
+    except Exception as e:
+        print('get_user_info : ', e)
+        pass
+
 def user_ignored(guild_id, user_id):
     try:
         if user_exists(guild_id, user_id):
@@ -148,8 +166,10 @@ def user_ignored(guild_id, user_id):
 def add_user(guild_id, user_id):
     try:
         if not user_exists(guild_id, user_id):
-            cur.execute('INSERT INTO users VALUES(?,?,1,0,0,0)', (user_id,guild_id))
-            sql.commit()
+            cur.execute('INSERT INTO users VALUES(?,?,1,0,0,0)', (user_id, guild_id))
+        else:
+            cur.execute('UPDATE users SET ignore=0 WHERE guild=? AND id=?', (guild_id, user_id))
+        sql.commit()
     except Exception as e:
         print('add_user : ', e)
         pass
@@ -160,7 +180,7 @@ def opt_out_user(guild_id, user_id):
         if user_exists(guild_id, user_id):
             cur.execute('UPDATE users SET relationship=1, with_id=0, score=0, ignore=1 WHERE guild=? AND id=?', (guild_id, user_id))
         else:
-            cur.execute('INSERT INTO users VALUES(?,?,1,0,0,0)', (user_id,guild_id))
+            cur.execute('INSERT INTO users VALUES(?,?,1,0,0,1)', (user_id,guild_id))
         sql.commit()
     except Exception as e:
         print('add_user : ', e)
@@ -170,7 +190,7 @@ def opt_out_user(guild_id, user_id):
 def get_random_user(guild_id, calling_user_id, is_not_married):
     try:
         if is_not_married:
-            cur.execute('SELECT id FROM users WHERE guild=? AND ignore=0 AND id<>? AND relationship<>3 ORDER BY RANDOM() LIMIT 1;', (guild_id, calling_user_id))
+            cur.execute('SELECT id FROM users WHERE guild=? AND ignore=0 AND id<>? AND relationship<>2 AND relationship<>3 ORDER BY RANDOM() LIMIT 1;', (guild_id, calling_user_id))
         else:
             cur.execute('SELECT id FROM users WHERE guild=? AND ignore=0 AND id<>? ORDER BY RANDOM() LIMIT 1;', (guild_id, calling_user_id))
         row = cur.fetchone()
@@ -219,18 +239,37 @@ def increment_score(guild_id, user_id, increment):
 
 def add_fuck(guild_id, user1_id, user2_id):
     try:
-        pass
+        if user_exists(guild_id, user1_id) and user_exists(guild_id, user2_id):
+            remove_all_fucks(guild_id, user1_id, user2_id)
+            cur.execute('INSERT INTO sex VALUES(?,?,?,?)', (user1_id, user2_id, guild_id, time.time()))
+            sql.commit()
+            return True
+        return False
     except Exception as e:
         print('add_fuck : ', e)
         pass
 
 
-def has_recent_fuck(guild_id, user1_id, user2_id):
+def most_recent_fuck(guild_id, user1_id, user2_id):
     try:
-        pass
+        cur.execute('SELECT count(*), timestamp FROM sex WHERE guild=? AND ((id1=? AND id2=?) OR (id1=? AND id2=?)) ORDER BY 1 DESC LIMIT 1', (guild_id, user1_id, user2_id, user2_id, user1_id))
+        encounter = cur.fetchone()
+        return float(encounter[1]) if int(encounter[0])!=0 else 0.0
     except Exception as e:
-        print('has_recent_fuck : ', e)
-        pass 
+        print('most_recent_fuck : ', e)
+        pass
+
+
+def remove_all_fucks(guild_id, user1_id, user2_id):
+    try:
+        if user_exists(guild_id, user1_id) and user_exists(guild_id, user2_id):
+            cur.execute('DELETE sex WHERE guild=? AND ((id1=? AND id2=?) OR (id1=? AND id2=?))', (guild_id, user1_id, user2_id, user2_id, user1_id))
+            sql.commit()
+            return True
+        return False
+    except Exception as e:
+        print('remove_all_fucks : ', e)
+        pass
 
 
 def add_spouse(guild_id, user1_id, user2_id):
@@ -253,20 +292,20 @@ def is_married(guild_id, user_id):
         pass
 
 
-def add_so(guild_id, user1_id, user2_id):
+def add_significant_other(guild_id, user1_id, user2_id):
     try:
         cur.execute("UPDATE users SET relationship=2, with_id=? WHERE guild=? AND id=?", (user2_id, guild_id, user1_id))
         cur.execute("UPDATE users SET relationship=2, with_id=? WHERE guild=? AND id=?", (user1_id, guild_id, user2_id))
         sql.commit()
     except Exception as e:
-        print('add_so : ', e)
+        print('add_significant_other : ', e)
         pass
 
 
 def remove_relationship(guild_id, user1_id, user2_id):
     try:
-        cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user1_id))
-        cur.execute("UPDATE users SET relationship=1, with_id=null WHERE guild=? AND id=?", (guild_id, user2_id))
+        cur.execute("UPDATE users SET relationship=1, with_id=0 WHERE guild=? AND id=?", (guild_id, user1_id))
+        cur.execute("UPDATE users SET relationship=1, with_id=0 WHERE guild=? AND id=?", (guild_id, user2_id))
         sql.commit()
     except Exception as e:
         print('remove_relationship : ', e)
@@ -318,16 +357,21 @@ def get_relationship_status(guild_id, user_id):
 
 async def get_answer(reply, target_user):
     try:
-        await reply.add_reaction(reply, "✅")
-        await reply.add_reaction(reply, "❌")
+        await reply.add_reaction("✅")
+        await reply.add_reaction("❌")
+
+        def check(reaction, user):
+            return str(reaction.emoji) in ["✅", "❌"] and user == target_user
+
         try:
-            answer = await reply.wait_for_reaction(emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target_user)
+            reaction, user = await client.wait_for('reaction_add', timeout=60.0, check=check)
+            # answer = await client.wait_for('reaction_add', emoji=["✅", "❌"], message=reply, timeout=60.0, check=lambda reaction, user: user == target_user)
         except asyncio.TimeoutError:
             return Results.timeout
         else:
-            if answer.reaction.emoji == "✅":
+            if reaction.emoji == "✅":
                 return Results.accept
-            elif answer.reaction.emoji == "❌":
+            elif reaction.emoji == "❌":
                 return Results.decline
     except Exception as e:
         print('get_answer : ', e)
@@ -357,15 +401,16 @@ async def status(ctx):
         if not user_exists(guild_id, target.id):
             await ctx.send("{0.mention} Looks like that user isn't playing".format(user))
             return
-        cur.execute('SELECT count(*), id, relationship, score, ignore FROM users WHERE id=? AND guild=?', (target.id,guild_id))
-        user = cur.fetchone()
-        if int(user[0]) == 0 or int(user[4]) == 1:
-            await ctx.send("{0.author.mention} That user does not appear to be playing.".format(ctx.message))
-            return
+        # cur.execute('SELECT count(*), id, relationship, score, ignore FROM users WHERE id=? AND guild=?', (target.id,guild_id))
+        # user = cur.fetchone()
+        # if int(user[0]) == 0 or int(user[4]) == 1:
+        #     await ctx.send("{0.author.mention} That user does not appear to be playing.".format(ctx.message))
+        #     return
+        relationship, score = get_user_info(guild_id, target.id)
         embed = discord.Embed(title='User Status', type='rich', color=0x77B255)
         embed.add_field(name='User:', value=target.name, inline=True)
-        embed.add_field(name='Status:', value=Relationship(int(user[2])).name, inline=True)
-        embed.add_field(name='Score:', value=str(int(user[3])), inline=True)
+        embed.add_field(name='Status:', value=relationship.name, inline=True)
+        embed.add_field(name='Score:', value=score, inline=True)
         await ctx.send(embed=embed)
     except Exception as e:
         print('status : ', e)
@@ -409,23 +454,36 @@ async def fuck(ctx):
         if user_ignored(guild_id, target.id):
             await ctx.send("{0.mention} Looks like that user isn't playing.".format(user))
             return
+        if is_married(guild_id, user.id) and in_relationship_with(guild_id, user.id) == target:
+            time_since = time.time() - most_recent_fuck(guild_id, user.id, target.id)
+            if time_since < 300:
+                await ctx.send("{0.mention} You two are married, you need to wait {1} more seconds lmao.".format(user, int(300-time_since)))
+                return
+        if is_dating(guild_id, user.id) and in_relationship_with(guild_id, user.id) == target:
+            time_since = time.time() - most_recent_fuck(guild_id, user.id, target.id)
+            if time_since < 120:
+                await ctx.send("{0.mention} Slow down there lovebirds, you need to wait {1} more seconds lol.".format(user, int(120-time_since)))
+                return
         reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, user))
-        answer = get_answer(reply, target)
+        answer = await get_answer(reply, target)
         if answer == Results.accept:
-            if in_relationship_with(guild_id, user.id) == target:
+            if is_married(guild_id, user.id) and in_relationship_with(guild_id, user.id) == target:
                 await ctx.send("{0.mention} Boring marital sex.  Alright then.  +20".format(user))
                 increment_score(guild_id, user.id, 20)
                 increment_score(guild_id, target.id, 20)
+                add_fuck(guild_id, user.id, target.id)
                 return
             if in_relationship_with(guild_id, user.id) == target:
-                await ctx.send("{0.mention} Sounds like it's going good.  +50".format(user))
+                await ctx.send("{0.mention} Ayyy.  +50".format(user))
                 increment_score(guild_id, user.id, 50)
                 increment_score(guild_id, target.id, 50)
+                add_fuck(guild_id, user.id, target.id)
                 return
             if not is_in_relationship(guild_id, user.id) and not is_in_relationship(guild_id, target.id):
-                await ctx.send("{0.mention} *HOT*.  +100".format(user))
+                await ctx.send("{0.mention} ***HOT***.  +100".format(user))
                 increment_score(guild_id, user.id, 100)
                 increment_score(guild_id, target.id, 100)
+                add_fuck(guild_id, user.id, target.id)
                 return
             cheater = random.choice([user, target])
             caught = random.randint(1,11) == 1
@@ -433,32 +491,35 @@ async def fuck(ctx):
                 if is_married(guild_id, cheater.id):
                     spouse = in_relationship_with(guild_id, user.id)
                     reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Is this marriage over?".format(spouse, cheater))
-                    answer = get_answer(reply, spouse)
+                    answer = await get_answer(reply, spouse)
                     if answer == Results.accept:
                         score = get_score(guild_id, cheater.id)
                         update_score(guild_id, cheater.id, score / 2)
                         update_score(guild_id, spouse.id, get_score(guild_id, spouse.id) + (score / 2))
                         remove_relationship(guild_id, cheater.id, spouse.id)
+                        remove_all_fucks(guild_id, user.id, spouse.id)
                         await ctx.send("Welp, {0.mention} just lost half their shit.".format(cheater))
                     elif answer == Results.decline:
                         await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(spouse, cheater))
                     elif answer == Results.timeout:
                         await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(spouse))
                 elif is_dating(guild_id, cheater.id):
-                    significantother = in_relationship_with(guild_id, user.id)
-                    reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Gonna dump their ass?".format(significantother, cheater))
-                    answer = get_answer(reply, significantother)
+                    significant_other = in_relationship_with(guild_id, user.id)
+                    reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Gonna dump their ass?".format(significant_other, cheater))
+                    answer = await get_answer(reply, significant_other)
                     if answer == Results.accept:
-                        remove_relationship(guild_id, cheater.id, significantother.id)
+                        remove_relationship(guild_id, cheater.id, significant_other.id)
+                        remove_all_fucks(guild_id, user.id, significant_other.id)
                         await ctx.send("{0.mention} Guess you just got dumped.  YOLO!".format(cheater))
                     elif answer == Results.decline:
-                        await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(significantother, cheater))
+                        await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(significant_other, cheater))
                     elif answer == Results.timeout:
-                        await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(significantother))
+                        await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(significant_other))
             else:
                 await ctx.send("{0.mention} No one got caught.  *NICE*.  +200".format(user))
                 increment_score(guild_id, user.id, 200)
                 increment_score(guild_id, target.id, 200)
+                add_fuck(guild_id, user.id, target.id)
                 return
         elif answer == Results.decline:
             await ctx.send("{0.mention} lmao denied!".format(user))
@@ -509,10 +570,10 @@ async def date(ctx):
             await ctx.send("{0.mention} That player is already taken.".format(user))
             return
         reply = await ctx.send("{0.mention} My friend {1.mention} wants to go out with you, what do you think?".format(target, user))
-        answer = get_answer(reply, target)
+        answer = await get_answer(reply, target)
         if answer == Results.accept:
             await ctx.send("{0.mention} You two make a great couple!".format(user))
-            add_spouse(guild_id, user.id, target.id)
+            add_significant_other(guild_id, user.id, target.id)
             increment_score(guild_id, user.id, 300)
             increment_score(guild_id, target.id, 300)
         elif answer == Results.decline:
@@ -538,6 +599,7 @@ async def marry(ctx):
         user = ctx.message.author
         targets = ctx.message.mentions
         target = None
+        reply = None
         if len(targets) > 1:
             await ctx.send("{0.author.mention} Please mention only one user to marry, this isn't Utah.  Or don't mention any to marry at random.".format(ctx.message))
             return
@@ -556,17 +618,20 @@ async def marry(ctx):
                 await ctx.send("{0.mention} That's cute and all, but you two are already married.".format(user))
                 return
             else:
-                await ctx.send("{0.mention} You're already married.  Gotta drop that baggage first with a ```{1}divorce```.".format(user, command_prefix))
+                await ctx.send("{0.mention} You're already married.  Gotta drop that baggage first with a `{1}divorce`.".format(user, command_prefix))
                 return
-        if is_dating(guild_id, user.id):
+        elif is_dating(guild_id, user.id):
             if in_relationship_with(guild_id, user.id) != target:
-                await ctx.send("{0.mention} You're already dating someone else.  Gotta ```{1}dump``` their ass first.".format(user, command_prefix))
+                await ctx.send("{0.mention} You're already dating someone else.  Gotta `{1}dump` their ass first.".format(user, command_prefix))
                 return
-        if is_in_relationship(guild_id, target.id):
+            if in_relationship_with(guild_id, user.id) == target:
+                reply = await ctx.send("{0.mention} I guess {1.mention} finally popped the question.  What do you say?".format(target, user))
+        elif is_in_relationship(guild_id, target.id):
             await ctx.send("{0.mention} That player is already taken.".format(user))
             return
-        reply = await ctx.send("{0.mention} Oh wow, {1.mention} just proposed!  What do you say?".format(target, user))
-        answer = get_answer(reply, target)
+        else:
+            reply = await ctx.send("{0.mention} Oh wow, {1.mention} just proposed!  What do you say?".format(target, user))
+        answer = await get_answer(reply, target)
         if answer == Results.accept:
             await ctx.send("{0.mention} Looks like you just got hitched!".format(user))
             add_spouse(guild_id, user.id, target.id)
@@ -590,13 +655,14 @@ async def dump(ctx):
         guild_id = ctx.message.guild.id
         user = ctx.message.author
         if not is_in_relationship(guild_id, user.id):
-            await ctx.send("{0.mention} Need to actually ```{1}date``` someone before you can dump them.".format(user, command_prefix))
+            await ctx.send("{0.mention} Need to actually `{1}date` someone before you can dump them.".format(user, command_prefix))
             return
         if is_married(guild_id, user.id):
-            await ctx.send("{0.mention} You're married, it's not quite that easy.  A ```{1}divorce``` is what you're looking for.".format(user, command_prefix))
+            await ctx.send("{0.mention} You're married, it's not quite that easy.  A `{1}divorce` is what you're looking for.".format(user, command_prefix))
             return
         target = in_relationship_with(guild_id, user.id)
         remove_relationship(guild_id, user.id, target.id)
+        remove_all_fucks(guild_id, user.id, target.id)
         await ctx.send("{0.mention} That was easy.".format(user))
     except Exception as e:
         print('dump : ', e)
@@ -614,29 +680,35 @@ async def divorce(ctx):
         guild_id = ctx.message.guild.id
         user = ctx.message.author
         if not is_in_relationship(guild_id, user.id):
-            await ctx.send("{0.mention} Need to actually ```{1}marry``` someone before you ruin your life.".format(user, command_prefix))
+            await ctx.send("{0.mention} Need to actually `{1}marry` someone first to ruin eachother's lives.".format(user, command_prefix))
             return
         if is_dating(guild_id, user.id):
-            await ctx.send("{0.mention} You're only dating.  Just ```{1}dump``` their ass.".format(user, command_prefix))
+            await ctx.send("{0.mention} You're only dating.  Just `{1}dump` their ass.".format(user, command_prefix))
             return
         spouse = in_relationship_with(guild_id, user.id)
         reply = await ctx.send("{0.mention} Oh shit, {1.mention} wants out!  What do you say?".format(spouse, user))
-        answer = get_answer(reply, spouse)
+        answer = await get_answer(reply, spouse)
         if answer == Results.accept:
             new_score = (get_score(guild_id, user.id) + get_score(guild_id, spouse.id)) / 4
             update_score(guild_id, user.id, new_score)
             update_score(guild_id, spouse.id, new_score)
+            remove_relationship(guild_id, user.id, spouse.id)
+            remove_all_fucks(guild_id, user.id, spouse.id)
             await ctx.send("{0.mention} Freedom at last!".format(user))
         elif answer == Results.decline:
             loser = random.choice([user, spouse])
-            lost_points = random.randint(1, get_score(guild_id, loser) + 1)
+            lost_points = random.randint(1, int(get_score(guild_id, loser.id)))
             if loser == user:
-                increment_score(guild_id, user, lost_points * -1)
-                increment_score(guild_id, spouse, lost_points)
+                increment_score(guild_id, user.id, lost_points * -1)
+                increment_score(guild_id, spouse.id, lost_points)
+                remove_relationship(guild_id, user.id, spouse.id)
+                remove_all_fucks(guild_id, user.id, spouse.id)
                 await ctx.send("{0.mention} Best {1} points you ever spent.".format(user, lost_points))
             else:
-                increment_score(guild_id, user, lost_points)
-                increment_score(guild_id, spouse, lost_points * -1)
+                increment_score(guild_id, user.id, lost_points)
+                increment_score(guild_id, spouse.id, lost_points * -1)
+                remove_relationship(guild_id, user.id, spouse.id)
+                remove_all_fucks(guild_id, user.id, spouse.id)
                 await ctx.send("{0.mention} Came out on top of that deal.  ***NICE!***".format(user))
         elif answer == Results.timeout:
             await ctx.send("{0.mention} No answer, that's cold.".format(user))
@@ -669,16 +741,77 @@ async def stop(ctx):
         add_user(guild_id, user.id)
         if is_in_relationship(guild_id, user.id):
             reply = await ctx.send("{0.mention} You're in a relationship.  Are you really going to walk away from that?".format(user))
-            answer = get_answer(reply, user)
+            answer = await get_answer(reply, user)
             if answer == Results.accept:
                 other = in_relationship_with(guild_id, user.id)
                 update_score(guild_id, other.id, get_score(guild_id, other.id) + get_score(guild_id, user.id))
                 remove_relationship(guild_id, user.id, other.id)
                 opt_out_user(guild_id, user.id)
         else:
+            opt_out_user(guild_id, user.id)
             await ctx.send("{0.mention} Okay, I won't bother you.".format(user))
     except Exception as e:
         print('play : ', e)
+        pass
+
+
+@client.command(pass_context=True, name='leaders')
+async def leaders(ctx):
+    try:
+        if ctx.message.author == client.user or ctx.message.author.bot:
+            return
+        rank = 1
+        lines = []
+        cur.execute('SELECT id, score FROM users WHERE ignore = 0 ORDER BY 2 DESC LIMIT 10')
+        users = cur.fetchall()
+        embed = discord.Embed(title='Leaderboard', type='rich', color=0x77B255)
+        for row in users:
+            user = get(client.get_all_members(), id=row[0])
+            score = int(row[1]) 
+            lines.append('**{0}. {1} - {2}**'.format(rank, user, score))
+            rank+=1
+            if rank > 10:
+                break
+        embed.add_field(name='Players', value="\n".join(lines), )
+        # for row in users:
+        #     user = get(client.get_all_members(), id=row[0])
+        #     score = int(row[1]) 
+        #     embed.add_field(name='**{0}.** {1} - {2}'.format(rank, user.name, score), value='', inline=False)
+        #     rank+=1
+        #     if rank > 10:
+        #         break
+        await ctx.send(embed=embed)
+    except Exception as e:
+        print('leaders : ', e)
+        pass
+
+
+@client.command(pass_context=True, name='help')
+async def help(ctx):
+    try:
+        if ctx.message.author == client.user or ctx.message.author.bot:
+            return
+        inline = False
+        embed = discord.Embed(title='Help', type='rich', color=0x77B255)
+        embed.add_field(name='**{0}play**'.format(command_prefix), value='Join the game', inline=inline)
+        embed.add_field(name='**{0}stop**'.format(command_prefix), value='Leave the game', inline=inline)
+        embed.add_field(name='**{0}status <optional mention>**'.format(command_prefix), value='Check your status or that of another player', inline=inline)
+        embed.add_field(name='**{0}fuck <optional mention>**'.format(command_prefix), value='Fuck a random or specific player', inline=inline)
+        embed.add_field(name='**{0}date <optional mention>**'.format(command_prefix), value='Date a random or specific player', inline=inline)
+        embed.add_field(name='**{0}marry <optional mention>**'.format(command_prefix), value='Marry a random or specific player', inline=inline)
+        embed.add_field(name='**{0}dump**'.format(command_prefix), value='Dump your significant other', inline=inline)
+        embed.add_field(name='**{0}divorce**'.format(command_prefix), value='Divorce your spouse', inline=inline)
+        embed.add_field(name='**{0}leaders**'.format(command_prefix), value='See the leaderboard', inline=inline)
+        # for row in users:
+        #     user = get(client.get_all_members(), id=row[0])
+        #     score = int(row[1]) 
+        #     embed.add_field(name='**{0}.** {1} - {2}'.format(rank, user.name, score), value='', inline=False)
+        #     rank+=1
+        #     if rank > 10:
+        #         break
+        await ctx.send(embed=embed)
+    except Exception as e:
+        print('leaders : ', e)
         pass
 
 

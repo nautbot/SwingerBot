@@ -102,7 +102,7 @@ async def on_error(event_method, *args, **kwargs):
     mods_msg = "Exception occured in {}".format(event_method)
     tb = traceback.format_exc()
     print(''.join(tb))
-    mods_msg += '\n```' + ''.join(tb) + '\n```'
+    mods_msg += '\n`' + ''.join(tb) + '\n`'
     mods_msg += '\nargs: `{}`\n\nkwargs: `{}`'.format(args, kwargs)
     print(mods_msg)
     print(args)
@@ -402,19 +402,14 @@ async def status(ctx):
         if not user_exists(guild_id, target.id):
             await ctx.send("{0.mention} Looks like that user isn't playing".format(user))
             return
-        # cur.execute('SELECT count(*), id, relationship, score, ignore FROM users WHERE id=? AND guild=?', (target.id,guild_id))
-        # user = cur.fetchone()
-        # if int(user[0]) == 0 or int(user[4]) == 1:
-        #     await ctx.send("{0.author.mention} That user does not appear to be playing.".format(ctx.message))
-        #     return
         relationship, score = get_user_info(guild_id, target.id)
         other = in_relationship_with(guild_id, target.id)
         embed = discord.Embed(title='User Status', type='rich', color=0x77B255)
-        embed.add_field(name='User:', value=target.name, inline=True)
+        embed.add_field(name='User:', value=target.display_name, inline=True)
         if relationship == Relationship.Single:
             embed.add_field(name='Status:', value=relationship.name, inline=True)
         else:
-            embed.add_field(name='Status:', value="{0} ({1})".format(relationship.name, other.name), inline=True)
+            embed.add_field(name='Status:', value="{0} ({1})".format(relationship.name, other.display_name), inline=True)
         embed.add_field(name='Score:', value=score, inline=True)
         await ctx.send(embed=embed)
     except Exception as e:
@@ -574,11 +569,11 @@ async def date(ctx):
                 await ctx.send("{0.mention} That's cute and all, but you two are already married.".format(user))
                 return
             else:
-                await ctx.send("{0.mention} You're already married.  Gotta drop that baggage first with a ```{1}divorce```.".format(user, command_prefix))
+                await ctx.send("{0.mention} You're already married.  Gotta drop that baggage first with a `{1}divorce`.".format(user, command_prefix))
                 return
         if is_dating(guild_id, user.id):
             if in_relationship_with(guild_id, user.id) != target:
-                await ctx.send("{0.mention} You're already dating someone else.  Gotta ```{1}dump``` their ass first.".format(user, command_prefix))
+                await ctx.send("{0.mention} You're already dating someone else.  Gotta `{1}dump` their ass first.".format(user, command_prefix))
                 return
         if is_in_relationship(guild_id, target.id):
             await ctx.send("{0.mention} That player is already taken.".format(user))
@@ -789,18 +784,11 @@ async def leaders(ctx):
         for row in users:
             user = get(client.get_all_members(), id=row[0])
             score = int(row[1]) 
-            lines.append('**{0}. {1} - {2}**'.format(rank, user, score))
+            lines.append('**{0}. {1} - {2}**'.format(rank, user.display_name, score))
             rank+=1
             if rank > 10:
                 break
         embed.add_field(name='Players', value="\n".join(lines), )
-        # for row in users:
-        #     user = get(client.get_all_members(), id=row[0])
-        #     score = int(row[1]) 
-        #     embed.add_field(name='**{0}.** {1} - {2}'.format(rank, user.name, score), value='', inline=False)
-        #     rank+=1
-        #     if rank > 10:
-        #         break
         await ctx.send(embed=embed)
     except Exception as e:
         print('leaders : ', e)
@@ -823,13 +811,6 @@ async def help(ctx):
         embed.add_field(name='**{0}dump**'.format(command_prefix), value='Dump your significant other', inline=inline)
         embed.add_field(name='**{0}divorce**'.format(command_prefix), value='Divorce your spouse', inline=inline)
         embed.add_field(name='**{0}leaders**'.format(command_prefix), value='See the leaderboard', inline=inline)
-        # for row in users:
-        #     user = get(client.get_all_members(), id=row[0])
-        #     score = int(row[1]) 
-        #     embed.add_field(name='**{0}.** {1} - {2}'.format(rank, user.name, score), value='', inline=False)
-        #     rank+=1
-        #     if rank > 10:
-        #         break
         await ctx.send(embed=embed)
     except Exception as e:
         print('leaders : ', e)

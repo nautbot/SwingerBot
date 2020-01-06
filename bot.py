@@ -9,7 +9,6 @@ import discord
 from discord.ext import commands
 from discord.utils import get
 import sqlite3
-from textblob import TextBlob
 
 with open('settings.json') as settings_file:
     settings = json.load(settings_file)

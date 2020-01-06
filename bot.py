@@ -263,8 +263,9 @@ def most_recent_fuck(guild_id, user1_id, user2_id):
 def remove_all_fucks(guild_id, user1_id, user2_id):
     try:
         if user_exists(guild_id, user1_id) and user_exists(guild_id, user2_id):
-            cur.execute('DELETE sex WHERE guild=? AND ((id1=? AND id2=?) OR (id1=? AND id2=?))', (guild_id, user1_id, user2_id, user2_id, user1_id))
+            cur.execute('DELETE FROM sex WHERE guild=? AND ((id1=? AND id2=?) OR (id1=? AND id2=?))', (guild_id, user1_id, user2_id, user2_id, user1_id))
             sql.commit()
+            cur.execute('VACUUM')
             return True
         return False
     except Exception as e:
@@ -446,6 +447,9 @@ async def fuck(ctx):
             return
         elif len(targets) == 1:
             target = targets[0]
+            if target == user:
+                await ctx.send("{0.mention} ".format(user) + random.choice(["I guess you can fuck yourself.", "That's just gross."]))
+                return
         else:
             target = get_random_user(guild_id, user.id, False)
         if target.bot:
@@ -486,7 +490,7 @@ async def fuck(ctx):
                 add_fuck(guild_id, user.id, target.id)
                 return
             cheater = random.choice([user, target])
-            caught = random.randint(1,11) == 1
+            caught = random.randint(1,5) == 1
             if caught:
                 if is_married(guild_id, cheater.id):
                     spouse = in_relationship_with(guild_id, user.id)
@@ -547,6 +551,9 @@ async def date(ctx):
             return
         elif len(targets) == 1:
             target = targets[0]
+            if target == user:
+                await ctx.send("{0.mention} ".format(user) + random.choice(["Try dating *someone else*.", "That's just gross."]))
+                return
         else:
             target = get_random_user(ctx.message.guild.id, user.id, False)
         if target.bot:
@@ -605,6 +612,9 @@ async def marry(ctx):
             return
         elif len(targets) == 1:
             target = targets[0]
+            if target == user:
+                await ctx.send("{0.mention} ".format(user) + random.choice(["Try marrying *someone else*.", "That's just gross."]))
+                return
         else:
             target = get_random_user(ctx.message.guild.id, user.id, False)
         if target.bot:
@@ -760,9 +770,10 @@ async def leaders(ctx):
     try:
         if ctx.message.author == client.user or ctx.message.author.bot:
             return
+        guild_id = ctx.message.guild.id
         rank = 1
         lines = []
-        cur.execute('SELECT id, score FROM users WHERE ignore = 0 ORDER BY 2 DESC LIMIT 10')
+        cur.execute('SELECT id, score FROM users WHERE guild=? AND ignore=0 ORDER BY 2 DESC LIMIT 10', (guild_id, ))
         users = cur.fetchall()
         embed = discord.Embed(title='Leaderboard', type='rich', color=0x77B255)
         for row in users:

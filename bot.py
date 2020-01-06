@@ -216,7 +216,7 @@ def get_score(guild_id, user_id):
 def update_score(guild_id, user_id, new_score):
     try:
         if user_exists(guild_id, user_id):
-            cur.execute("UPDATE users SET score=? WHERE guild=? AND id=?", (new_score, guild_id, user_id))
+            cur.execute("UPDATE users SET score=? WHERE guild=? AND id=?", (int(new_score), guild_id, user_id))
             sql.commit()
             return True
         return False
@@ -228,7 +228,7 @@ def update_score(guild_id, user_id, new_score):
 def increment_score(guild_id, user_id, increment):
     try:
         if user_exists(guild_id, user_id):
-            cur.execute("UPDATE users SET score=score+? WHERE guild=? AND id=?", (increment, guild_id, user_id))
+            cur.execute("UPDATE users SET score=score+? WHERE guild=? AND id=?", (int(increment), guild_id, user_id))
             sql.commit()
             return True
         return False
@@ -408,9 +408,13 @@ async def status(ctx):
         #     await ctx.send("{0.author.mention} That user does not appear to be playing.".format(ctx.message))
         #     return
         relationship, score = get_user_info(guild_id, target.id)
+        other = in_relationship_with(guild_id, target.id)
         embed = discord.Embed(title='User Status', type='rich', color=0x77B255)
         embed.add_field(name='User:', value=target.name, inline=True)
-        embed.add_field(name='Status:', value=relationship.name, inline=True)
+        if relationship == Relationship.Single:
+            embed.add_field(name='Status:', value=relationship.name, inline=True)
+        else:
+            embed.add_field(name='Status:', value="{0} ({1})".format(relationship.name, other.name), inline=True)
         embed.add_field(name='Score:', value=score, inline=True)
         await ctx.send(embed=embed)
     except Exception as e:
@@ -527,6 +531,8 @@ async def fuck(ctx):
                 return
         elif answer == Results.decline:
             await ctx.send("{0.mention} lmao denied!".format(user))
+        elif answer == Results.timeout:
+            await ctx.send("{0.mention} Guess you just got blown off.  Better luck next time.".format(user))
     except Exception as e:
         print('fuck : ', e)
         pass
@@ -544,6 +550,7 @@ async def date(ctx):
             return
         guild_id = ctx.message.guild.id
         user = ctx.message.author
+        add_user(guild_id, user.id)
         targets = ctx.message.mentions
         target = None
         if len(targets) > 1:
@@ -604,6 +611,7 @@ async def marry(ctx):
             return
         guild_id = ctx.message.guild.id
         user = ctx.message.author
+        add_user(guild_id, user.id)
         targets = ctx.message.mentions
         target = None
         reply = None
@@ -664,6 +672,7 @@ async def dump(ctx):
             return
         guild_id = ctx.message.guild.id
         user = ctx.message.author
+        add_user(guild_id, user.id)
         if not is_in_relationship(guild_id, user.id):
             await ctx.send("{0.mention} Need to actually `{1}date` someone before you can dump them.".format(user, command_prefix))
             return
@@ -689,6 +698,7 @@ async def divorce(ctx):
             return
         guild_id = ctx.message.guild.id
         user = ctx.message.author
+        add_user(guild_id, user.id)
         if not is_in_relationship(guild_id, user.id):
             await ctx.send("{0.mention} Need to actually `{1}marry` someone first to ruin eachother's lives.".format(user, command_prefix))
             return

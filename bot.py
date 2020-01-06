@@ -493,7 +493,7 @@ async def fuck(ctx):
             caught = random.randint(1,5) == 1
             if caught:
                 if is_married(guild_id, cheater.id):
-                    spouse = in_relationship_with(guild_id, user.id)
+                    spouse = in_relationship_with(guild_id, cheater.id)
                     reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Is this marriage over?".format(spouse, cheater))
                     answer = await get_answer(reply, spouse)
                     if answer == Results.accept:
@@ -501,7 +501,7 @@ async def fuck(ctx):
                         update_score(guild_id, cheater.id, score / 2)
                         update_score(guild_id, spouse.id, get_score(guild_id, spouse.id) + (score / 2))
                         remove_relationship(guild_id, cheater.id, spouse.id)
-                        remove_all_fucks(guild_id, user.id, spouse.id)
+                        remove_all_fucks(guild_id, cheater.id, spouse.id)
                         await ctx.send("Welp, {0.mention} just lost half their shit.".format(cheater))
                     elif answer == Results.decline:
                         await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(spouse, cheater))
@@ -512,8 +512,8 @@ async def fuck(ctx):
                     reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Gonna dump their ass?".format(significant_other, cheater))
                     answer = await get_answer(reply, significant_other)
                     if answer == Results.accept:
-                        remove_relationship(guild_id, user.id, significant_other.id)
-                        remove_all_fucks(guild_id, user.id, significant_other.id)
+                        remove_relationship(guild_id, cheater.id, significant_other.id)
+                        remove_all_fucks(guild_id, cheater.id, significant_other.id)
                         await ctx.send("{0.mention} Guess you just got dumped.  YOLO!".format(cheater))
                     elif answer == Results.decline:
                         await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(significant_other, cheater))

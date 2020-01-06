@@ -508,11 +508,11 @@ async def fuck(ctx):
                     elif answer == Results.timeout:
                         await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(spouse))
                 elif is_dating(guild_id, cheater.id):
-                    significant_other = in_relationship_with(guild_id, user.id)
+                    significant_other = in_relationship_with(guild_id, cheater.id)
                     reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Gonna dump their ass?".format(significant_other, cheater))
                     answer = await get_answer(reply, significant_other)
                     if answer == Results.accept:
-                        remove_relationship(guild_id, cheater.id, significant_other.id)
+                        remove_relationship(guild_id, user.id, significant_other.id)
                         remove_all_fucks(guild_id, user.id, significant_other.id)
                         await ctx.send("{0.mention} Guess you just got dumped.  YOLO!".format(cheater))
                     elif answer == Results.decline:

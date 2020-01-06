@@ -169,6 +169,7 @@ def add_user(guild_id, user_id):
         else:
             cur.execute('UPDATE users SET ignore=0 WHERE guild=? AND id=?', (guild_id, user_id))
         sql.commit()
+        cur.execute('VACUUM')
     except Exception as e:
         print('add_user : ', e)
         pass
@@ -181,6 +182,7 @@ def opt_out_user(guild_id, user_id):
         else:
             cur.execute('INSERT INTO users VALUES(?,?,1,0,0,1)', (user_id,guild_id))
         sql.commit()
+        cur.execute('VACUUM')
     except Exception as e:
         print('add_user : ', e)
         pass
@@ -217,6 +219,7 @@ def update_score(guild_id, user_id, new_score):
         if user_exists(guild_id, user_id):
             cur.execute("UPDATE users SET score=? WHERE guild=? AND id=?", (int(new_score), guild_id, user_id))
             sql.commit()
+            cur.execute('VACUUM')
             return True
         return False
     except Exception as e:
@@ -229,6 +232,7 @@ def increment_score(guild_id, user_id, increment):
         if user_exists(guild_id, user_id):
             cur.execute("UPDATE users SET score=score+? WHERE guild=? AND id=?", (int(increment), guild_id, user_id))
             sql.commit()
+            cur.execute('VACUUM')
             return True
         return False
     except Exception as e:
@@ -242,6 +246,7 @@ def add_fuck(guild_id, user1_id, user2_id):
             remove_all_fucks(guild_id, user1_id, user2_id)
             cur.execute('INSERT INTO sex VALUES(?,?,?,?)', (user1_id, user2_id, guild_id, time.time()))
             sql.commit()
+            cur.execute('VACUUM')
             return True
         return False
     except Exception as e:
@@ -277,6 +282,7 @@ def add_spouse(guild_id, user1_id, user2_id):
         cur.execute("UPDATE users SET relationship=3, with_id=? WHERE guild=? AND id=?", (user2_id, guild_id, user1_id))
         cur.execute("UPDATE users SET relationship=3, with_id=? WHERE guild=? AND id=?", (user1_id, guild_id, user2_id))
         sql.commit()
+        cur.execute('VACUUM')
     except Exception as e:
         print('add_spouse : ', e)
         pass
@@ -297,6 +303,7 @@ def add_significant_other(guild_id, user1_id, user2_id):
         cur.execute("UPDATE users SET relationship=2, with_id=? WHERE guild=? AND id=?", (user2_id, guild_id, user1_id))
         cur.execute("UPDATE users SET relationship=2, with_id=? WHERE guild=? AND id=?", (user1_id, guild_id, user2_id))
         sql.commit()
+        cur.execute('VACUUM')
     except Exception as e:
         print('add_significant_other : ', e)
         pass
@@ -307,6 +314,7 @@ def remove_relationship(guild_id, user1_id, user2_id):
         cur.execute("UPDATE users SET relationship=1, with_id=0 WHERE guild=? AND id=?", (guild_id, user1_id))
         cur.execute("UPDATE users SET relationship=1, with_id=0 WHERE guild=? AND id=?", (guild_id, user2_id))
         sql.commit()
+        cur.execute('VACUUM')
     except Exception as e:
         print('remove_relationship : ', e)
         pass
@@ -337,9 +345,9 @@ def in_relationship_with(guild_id, user_id):
 
 def is_in_relationship(guild_id, user_id):
     try:
-        cur.execute("SELECT count(*), id, relationship FROM users WHERE guild=? AND id=?", (guild_id, user_id))
+        cur.execute("SELECT count(*), relationship FROM users WHERE guild=? AND id=? AND (relationship=2 OR relationship=3)", (guild_id, user_id))
         user = cur.fetchone()
-        return int(user[0]) != 0 and int(user[2]) != 1
+        return int(user[0]) != 0 and int(user[1]) != 1
     except Exception as e:
         print('is_in_relationship : ', e)
         pass
@@ -347,11 +355,11 @@ def is_in_relationship(guild_id, user_id):
 
 def get_relationship_status(guild_id, user_id):
     try:
-        cur.execute("SELECT count(*), id, relationship FROM users WHERE guild=? AND id=?", (guild_id, user_id))
+        cur.execute("SELECT count(*), relationship FROM users WHERE guild=? AND id=?", (guild_id, user_id))
         user = cur.fetchone()
-        return Relationship(int(user[2])) if int(user[0]) != 0 else None
+        return Relationship(int(user[1])) if int(user[0]) != 0 else None
     except Exception as e:
-        print('is_in_relationship : ', e)
+        print('get_relationship_status : ', e)
         pass
 
 

@@ -739,6 +739,67 @@ async def divorce(ctx):
         pass
 
 
+@client.command(pass_context=True, name='keys')
+async def keys(ctx):
+    try:
+        guild_id = ctx.message.guild.id
+        add_user(guild_id, ctx.message.author.id)
+        if not is_in_relationship(guild_id, ctx.message.author.id):
+            await ctx.send("{0.mention} You need to be in a relationship to host a key party.".format(ctx.message.author))
+            return
+        reply = await ctx.send("{0.mention} is hosting a key party!  Who wants to attend?".format(ctx.message.author))
+        reaction = await reply.add_reaction("🔑")
+        await asyncio.sleep(30)
+        reply = await ctx.channel.fetch_message(reply.id)
+        reaction = None
+        for react in reply.reactions:
+            if react.emoji == "🔑":
+                reaction = react
+                break
+        # reaction = next((x for x in reply.reactions if x.emoji=="🔑"), None)
+        if not reaction:
+            return
+        users = await reaction.users().flatten()
+        attendees = []
+        for user in users:
+            if user.bot:
+                continue
+            if in_relationship_with(guild_id, user.id) in users:
+                attendees.append(user)
+        eligible = 0
+        for attendee in attendees:
+            so = in_relationship_with(guild_id, attendee.id)
+            if so in attendees:
+                eligible+=1
+        if eligible < 4:
+            await ctx.send("{0.mention} Not enough couples joined your key party.  Lame.".format(ctx.message.author))
+        couples = []
+        matched = []
+        while len(matched) < len(attendees):
+            for attendee in attendees:
+                match = random.choice(attendees)
+                if match == attendee:
+                    continue
+                if match == in_relationship_with(guild_id, attendee.id):
+                    continue
+                matched.extend([attendee, match])
+                couples.append([attendee, match, random.randint(1, 300)])
+        couples.sort(key=lambda x: x[2], reverse=True)
+        lines = []
+        embed = discord.Embed(title='Key Party', type='rich', color=0x77B255)
+        for couple in couples:
+            lines.append('**{0} + {1} : {2}**'.format(couple[0].display_name, couple[1].display_name, couple[2]))
+            increment_score(guild_id, couple[0].id, couple[2])
+            increment_score(guild_id, couple[1].id, couple[2])
+            remove_all_fucks(guild_id, couple[0].id, couple[1].id)
+            add_fuck(guild_id, couple[0].id, couple[1].id)
+        embed.add_field(name='Couples', value="\n".join(lines))
+        await ctx.send(embed=embed)
+    except Exception as e:
+        print('keys : ', e)
+        pass
+
+
 @client.command(pass_context=True, name='play')
 async def play(ctx):
     try:
@@ -795,7 +856,7 @@ async def leaders(ctx):
             rank+=1
             if rank > 10:
                 break
-        embed.add_field(name='Players', value="\n".join(lines), )
+        embed.add_field(name='Players', value="\n".join(lines))
         await ctx.send(embed=embed)
     except Exception as e:
         print('leaders : ', e)
@@ -817,6 +878,7 @@ async def help(ctx):
         embed.add_field(name='**{0}marry <optional mention>**'.format(command_prefix), value='Marry a random or specific player', inline=inline)
         embed.add_field(name='**{0}dump**'.format(command_prefix), value='Dump your significant other', inline=inline)
         embed.add_field(name='**{0}divorce**'.format(command_prefix), value='Divorce your spouse', inline=inline)
+        embed.add_field(name='**{0}keys**'.format(command_prefix), value='Host a party', inline=inline)
         embed.add_field(name='**{0}leaders**'.format(command_prefix), value='See the leaderboard', inline=inline)
         await ctx.send(embed=embed)
     except Exception as e:

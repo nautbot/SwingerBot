@@ -749,7 +749,7 @@ async def keys(ctx):
             return
         reply = await ctx.send("{0.mention} is hosting a key party!  Who wants to attend?".format(ctx.message.author))
         reaction = await reply.add_reaction("🔑")
-        await asyncio.sleep(30)
+        await asyncio.sleep(60)
         reply = await ctx.channel.fetch_message(reply.id)
         reaction = None
         for react in reply.reactions:

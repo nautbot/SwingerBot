@@ -10,6 +10,8 @@ from discord.ext import commands
 from discord.utils import get
 import sqlite3
 
+import corpora
+
 with open('settings.json') as settings_file:
     settings = json.load(settings_file)
 
@@ -62,34 +64,26 @@ async def bot_ping(ctx):
 
 @client.event
 async def on_command_error(error, ctx):
-    if isinstance(error, commands.errors.CommandNotFound):
-        pass  # ...don't need to know if commands don't exist
-    if isinstance(error, commands.errors.CheckFailure):
-        await ctx.message.channel.send(
-            ctx.message.channel,
-            '{} You don''t have permission to use this command.' \
-            .format(ctx.message.author.mention))
-    elif isinstance(error, commands.errors.CommandOnCooldown):
-        try:
-            await ctx.message.delete()
-        except discord.errors.NotFound:
-            pass
-        await ctx.message.channel.send(
-            ctx.message.channel, '{} This command was used {:.2f}s ago ' \
-            'and is on cooldown. Try again in {:.2f}s.' \
-            .format(ctx.message.author.mention,
+    try:
+        if isinstance(error, commands.errors.CommandNotFound):
+            pass  # ...don't need to know if commands don't exist
+        if isinstance(error, commands.errors.CheckFailure):
+            await ctx.send('{0.author.mention} You don''t have permission to use this command.'.format(ctx.command))
+        elif isinstance(error, commands.errors.CommandOnCooldown):
+            try:
+                await ctx.message.delete()
+            except discord.errors.NotFound:
+                pass
+            await ctx.send('{0.author.mention} This command was used {:.2f}s ago ' \
+                'and is on cooldown. Try again in {:.2f}s.'.format(ctx.command,
                     error.cooldown.per - error.retry_after,
-                    error.retry_after))
-        await asyncio.sleep(10)
-        await ctx.message.delete()
-    else:
-        await ctx.message.channel.send(
-            'An error occured while processing the `{}` command.' \
-            .format(ctx.command.name))
-        print('Ignoring exception in command {0.command} ' \
-            'in {0.message.channel}'.format(ctx))
-        tb = traceback.format_exception(type(error), error, error.__traceback__)
-        print(''.join(tb))
+                        error.retry_after))
+        else:
+            await ctx.send('An error occured while processing the `{}` command.'.format(ctx.command.name))
+            tb = traceback.format_exception(type(error), error, error.__traceback__)
+            print(''.join(tb))
+    except:
+        pass
 
 
 @client.event
@@ -404,7 +398,7 @@ async def status(ctx):
         else:
             target = user
         if target.bot:
-            await ctx.send("{0.mention} ".format(user) + random.choice(["Uh, that's a bot....", "Maybe try an actual person.", "That's a weird fetish."]))
+            await ctx.send("{0.mention} Uh, that's a bot...".format(user))
             return
         if not user_exists(guild_id, target.id):
             await ctx.send("{0.mention} Looks like that user isn't playing".format(user))
@@ -454,51 +448,52 @@ async def fuck(ctx):
         elif len(targets) == 1:
             target = targets[0]
             if target == user:
-                await ctx.send("{0.mention} ".format(user) + random.choice(["I guess you can fuck yourself.", "That's just gross."]))
+                await ctx.send("{0.mention} ".format(user) + random.choice(corpora.self_fuck))
                 return
         else:
             target = get_random_user(guild_id, user.id, False)
         if target.bot:
-            await ctx.send("{0.mention} ".format(user) + random.choice(["Uh, that's a bot....", "Maybe try an actual person.", "That's a weird fetish."]))
+            await ctx.send("{0.mention} ".format(user) + random.choice(corpora.bot_fuck))
             return
         if user_ignored(guild_id, target.id):
-            await ctx.send("{0.mention} Looks like that user isn't playing.".format(user))
+            await ctx.send("{0.mention} ".format(user) + random.choice(corpora.user_not_playing))
             return
         if is_married(guild_id, user.id) and in_relationship_with(guild_id, user.id) == target:
             time_since = time.time() - most_recent_fuck(guild_id, user.id, target.id)
             if time_since < 300:
-                await ctx.send("{0.mention} You two are married, you need to wait {1} more seconds lmao.".format(user, int(300-time_since)))
+                await ctx.send("{0.mention} ".format(user) + random.choice(corpora.married_fuck_cooldown).format(int(300-time_since)))
                 return
         if is_dating(guild_id, user.id) and in_relationship_with(guild_id, user.id) == target:
             time_since = time.time() - most_recent_fuck(guild_id, user.id, target.id)
             if time_since < 120:
-                await ctx.send("{0.mention} Slow down there lovebirds, you need to wait {1} more seconds lol.".format(user, int(120-time_since)))
+                await ctx.send("{0.mention} ".format(user) + random.choice(corpora.dating_fuck_cooldown).format(int(120-time_since)))
                 return
-        reply = await ctx.send("{0.mention} Looks like {1.mention} wants to bang.  You down?".format(target, user))
+        reply = await ctx.send("{0.mention} ".format(target) + random.choice(corpora.wanna_bang).format(user))
         answer = await get_answer(reply, target)
         if answer == Results.accept:
             if is_married(guild_id, user.id) and in_relationship_with(guild_id, user.id) == target:
-                await ctx.send("{0.mention} Boring marital sex.  Alright then.  +20".format(user))
+                await ctx.send("{0.mention} {1}  +20".format(user, random.choice(corpora.married_post_coital)))
                 increment_score(guild_id, user.id, 20)
                 increment_score(guild_id, target.id, 20)
                 add_fuck(guild_id, user.id, target.id)
                 return
             if in_relationship_with(guild_id, user.id) == target:
-                await ctx.send("{0.mention} Ayyy.  +50".format(user))
+                await ctx.send("{0.mention} {1}  +50".format(user, random.choice(corpora.dating_post_coital)))
                 increment_score(guild_id, user.id, 50)
                 increment_score(guild_id, target.id, 50)
                 add_fuck(guild_id, user.id, target.id)
                 return
             if not is_in_relationship(guild_id, user.id) and not is_in_relationship(guild_id, target.id):
-                await ctx.send("{0.mention} ***HOT***.  +100".format(user))
+                await ctx.send("{0.mention} {1}  +100".format(user, random.choice(corpora.single_post_coital)))
                 increment_score(guild_id, user.id, 100)
                 increment_score(guild_id, target.id, 100)
                 add_fuck(guild_id, user.id, target.id)
                 return
             cheater = random.choice([user, target])
             caught = random.randint(1,5) == 1
-            if caught:
-                if is_married(guild_id, cheater.id):
+            # if caught:
+            if is_married(guild_id, user.id) or is_married(guild_id, target.id):
+                if random.randint(1,4) == 1 and is_married(guild_id, cheater.id):
                     spouse = in_relationship_with(guild_id, cheater.id)
                     reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Is this marriage over?".format(spouse, cheater))
                     answer = await get_answer(reply, spouse)
@@ -513,7 +508,16 @@ async def fuck(ctx):
                         await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(spouse, cheater))
                     elif answer == Results.timeout:
                         await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(spouse))
-                elif is_dating(guild_id, cheater.id):
+                    return
+                else:
+                    await ctx.send("{0.mention} {1}  +300".format(user, random.choice(corpora.cheating_post_coital)))
+                    increment_score(guild_id, user.id, 300)
+                    increment_score(guild_id, target.id, 300)
+                    add_fuck(guild_id, user.id, target.id)
+                    return
+                # elif is_dating(guild_id, cheater.id):
+            if is_dating(guild_id, user.id) or is_dating(guild_id, target.id):
+                if random.randint(1,7) == 1 and is_dating(guild_id, cheater.id):
                     significant_other = in_relationship_with(guild_id, cheater.id)
                     reply = await ctx.send("{0.mention} You just caught {1.mention} cheating.  Gonna dump their ass?".format(significant_other, cheater))
                     answer = await get_answer(reply, significant_other)
@@ -525,16 +529,22 @@ async def fuck(ctx):
                         await ctx.send("{0.mention} I can't believe you're just going to let {1.mention} walk all over you, but that's cool.".format(significant_other, cheater))
                     elif answer == Results.timeout:
                         await ctx.send("{0.mention} Took too long to answer.  Wouldn't let this linger, though.".format(significant_other))
-            else:
-                await ctx.send("{0.mention} No one got caught.  *NICE*.  +200".format(user))
-                increment_score(guild_id, user.id, 200)
-                increment_score(guild_id, target.id, 200)
-                add_fuck(guild_id, user.id, target.id)
-                return
+                    return
+                else:
+                    await ctx.send("{0.mention} {1}  +150".format(user, random.choice(corpora.cheating_post_coital)))
+                    increment_score(guild_id, user.id, 150)
+                    increment_score(guild_id, target.id, 150)
+                    add_fuck(guild_id, user.id, target.id)
+                    return
+            await ctx.send("{0.mention} {1}  +100".format(user, random.choice(corpora.single_post_coital)))
+            increment_score(guild_id, user.id, 100)
+            increment_score(guild_id, target.id, 100)
+            add_fuck(guild_id, user.id, target.id)
+            return
         elif answer == Results.decline:
-            await ctx.send("{0.mention} lmao denied!".format(user))
+            await ctx.send("{0.mention} {1}".format(user, random.choice(corpora.fuck_declined)))
         elif answer == Results.timeout:
-            await ctx.send("{0.mention} Guess you just got blown off.  Better luck next time.".format(user))
+            await ctx.send("{0.mention} {1}".format(user, random.choice(corpora.fuck_timeout)))
     except Exception as e:
         print('fuck : ', e)
         pass
@@ -739,7 +749,7 @@ async def divorce(ctx):
         pass
 
 
-@client.command(pass_context=True, name='keys')
+# @client.command(pass_context=True, name='keys')
 async def keys(ctx):
     try:
         guild_id = ctx.message.guild.id
@@ -756,7 +766,6 @@ async def keys(ctx):
             if react.emoji == "🔑":
                 reaction = react
                 break
-        # reaction = next((x for x in reply.reactions if x.emoji=="🔑"), None)
         if not reaction:
             return
         users = await reaction.users().flatten()
@@ -766,11 +775,13 @@ async def keys(ctx):
                 continue
             if in_relationship_with(guild_id, user.id) in users:
                 attendees.append(user)
+            await asyncio.sleep(0.5)
         eligible = 0
         for attendee in attendees:
             so = in_relationship_with(guild_id, attendee.id)
             if so in attendees:
                 eligible+=1
+            await asyncio.sleep(0.5)
         if eligible < 4:
             await ctx.send("{0.mention} Not enough couples joined your key party.  Lame.".format(ctx.message.author))
         couples = []
@@ -784,6 +795,7 @@ async def keys(ctx):
                     continue
                 matched.extend([attendee, match])
                 couples.append([attendee, match, random.randint(1, 300)])
+                await asyncio.sleep(0.5)
         couples.sort(key=lambda x: x[2], reverse=True)
         lines = []
         embed = discord.Embed(title='Key Party', type='rich', color=0x77B255)
@@ -878,7 +890,7 @@ async def help(ctx):
         embed.add_field(name='**{0}marry <optional mention>**'.format(command_prefix), value='Marry a random or specific player', inline=inline)
         embed.add_field(name='**{0}dump**'.format(command_prefix), value='Dump your significant other', inline=inline)
         embed.add_field(name='**{0}divorce**'.format(command_prefix), value='Divorce your spouse', inline=inline)
-        embed.add_field(name='**{0}keys**'.format(command_prefix), value='Host a party', inline=inline)
+        # embed.add_field(name='**{0}keys**'.format(command_prefix), value='Host a party', inline=inline)
         embed.add_field(name='**{0}leaders**'.format(command_prefix), value='See the leaderboard', inline=inline)
         await ctx.send(embed=embed)
     except Exception as e:
